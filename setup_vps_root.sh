@@ -213,46 +213,160 @@ if [ "$CONFIG_MODIFIED" = true ]; then
   
   if command -v systemctl &> /dev/null; then
     if systemctl list-units --type=service --all | grep -q sshd.service; then
-      systemctl restart sshd
-      if [ "$LANG" = "zh" ]; then
-        echo "✅ sshd 服务已重启"
+      if systemctl restart sshd 2>/dev/null; then
+        if [ "$LANG" = "zh" ]; then
+          echo "✅ sshd 服务已重启"
+        else
+          echo "✅ sshd service restarted"
+        fi
       else
-        echo "✅ sshd service restarted"
+        if [ "$LANG" = "zh" ]; then
+          echo "❌ sshd 服务重启失败，尝试ssh服务..."
+        else
+          echo "❌ Failed to restart sshd service, trying ssh service..."
+        fi
+        if systemctl restart ssh 2>/dev/null; then
+          if [ "$LANG" = "zh" ]; then
+            echo "✅ ssh 服务已重启"
+          else
+            echo "✅ ssh service restarted"
+          fi
+        else
+          if [ "$LANG" = "zh" ]; then
+            echo "❌ SSH 服务重启失败，请手动重启"
+          else
+            echo "❌ Failed to restart SSH service, please restart manually"
+          fi
+        fi
       fi
     elif systemctl list-units --type=service --all | grep -q ssh.service; then
-      systemctl restart ssh
-      if [ "$LANG" = "zh" ]; then
-        echo "✅ ssh 服务已重启"
+      if systemctl restart ssh 2>/dev/null; then
+        if [ "$LANG" = "zh" ]; then
+          echo "✅ ssh 服务已重启"
+        else
+          echo "✅ ssh service restarted"
+        fi
       else
-        echo "✅ ssh service restarted"
+        if [ "$LANG" = "zh" ]; then
+          echo "❌ ssh 服务重启失败，尝试sshd服务..."
+        else
+          echo "❌ Failed to restart ssh service, trying sshd service..."
+        fi
+        if systemctl restart sshd 2>/dev/null; then
+          if [ "$LANG" = "zh" ]; then
+            echo "✅ sshd 服务已重启"
+          else
+            echo "✅ sshd service restarted"
+          fi
+        else
+          if [ "$LANG" = "zh" ]; then
+            echo "❌ SSH 服务重启失败，请手动重启"
+          else
+            echo "❌ Failed to restart SSH service, please restart manually"
+          fi
+        fi
       fi
     else
-      if [ "$LANG" = "zh" ]; then
-        echo "⚠️  警告：未找到 sshd.service 或 ssh.service。请手动重启 SSH 服务"
+      # 尝试直接重启常见的SSH服务
+      if systemctl restart ssh 2>/dev/null; then
+        if [ "$LANG" = "zh" ]; then
+          echo "✅ ssh 服务已重启"
+        else
+          echo "✅ ssh service restarted"
+        fi
+      elif systemctl restart sshd 2>/dev/null; then
+        if [ "$LANG" = "zh" ]; then
+          echo "✅ sshd 服务已重启"
+        else
+          echo "✅ sshd service restarted"
+        fi
       else
-        echo "⚠️  Warning: sshd.service or ssh.service not found. Please restart SSH service manually"
+        if [ "$LANG" = "zh" ]; then
+          echo "⚠️  警告：未找到可用的SSH服务。请手动重启SSH服务"
+          echo "   常用命令：systemctl restart ssh 或 systemctl restart sshd"
+        else
+          echo "⚠️  Warning: No available SSH service found. Please restart SSH service manually"
+          echo "   Common commands: systemctl restart ssh or systemctl restart sshd"
+        fi
       fi
     fi
   elif command -v service &> /dev/null; then
     if service ssh status &> /dev/null; then
-      service ssh restart
-      if [ "$LANG" = "zh" ]; then
-        echo "✅ ssh 服务已重启"
+      if service ssh restart 2>/dev/null; then
+        if [ "$LANG" = "zh" ]; then
+          echo "✅ ssh 服务已重启"
+        else
+          echo "✅ ssh service restarted"
+        fi
       else
-        echo "✅ ssh service restarted"
+        if [ "$LANG" = "zh" ]; then
+          echo "❌ ssh 服务重启失败，尝试sshd服务..."
+        else
+          echo "❌ Failed to restart ssh service, trying sshd service..."
+        fi
+        if service sshd restart 2>/dev/null; then
+          if [ "$LANG" = "zh" ]; then
+            echo "✅ sshd 服务已重启"
+          else
+            echo "✅ sshd service restarted"
+          fi
+        else
+          if [ "$LANG" = "zh" ]; then
+            echo "❌ SSH 服务重启失败，请手动重启"
+          else
+            echo "❌ Failed to restart SSH service, please restart manually"
+          fi
+        fi
       fi
     elif service sshd status &> /dev/null; then
-      service sshd restart
-      if [ "$LANG" = "zh" ]; then
-        echo "✅ sshd 服务已重启"
+      if service sshd restart 2>/dev/null; then
+        if [ "$LANG" = "zh" ]; then
+          echo "✅ sshd 服务已重启"
+        else
+          echo "✅ sshd service restarted"
+        fi
       else
-        echo "✅ sshd service restarted"
+        if [ "$LANG" = "zh" ]; then
+          echo "❌ sshd 服务重启失败，尝试ssh服务..."
+        else
+          echo "❌ Failed to restart sshd service, trying ssh service..."
+        fi
+        if service ssh restart 2>/dev/null; then
+          if [ "$LANG" = "zh" ]; then
+            echo "✅ ssh 服务已重启"
+          else
+            echo "✅ ssh service restarted"
+          fi
+        else
+          if [ "$LANG" = "zh" ]; then
+            echo "❌ SSH 服务重启失败，请手动重启"
+          else
+            echo "❌ Failed to restart SSH service, please restart manually"
+          fi
+        fi
       fi
     else
-      if [ "$LANG" = "zh" ]; then
-        echo "⚠️  警告：无法确定 SSH 服务状态。请手动重启 SSH 服务"
+      # 尝试直接重启常见的SSH服务
+      if service ssh restart 2>/dev/null; then
+        if [ "$LANG" = "zh" ]; then
+          echo "✅ ssh 服务已重启"
+        else
+          echo "✅ ssh service restarted"
+        fi
+      elif service sshd restart 2>/dev/null; then
+        if [ "$LANG" = "zh" ]; then
+          echo "✅ sshd 服务已重启"
+        else
+          echo "✅ sshd service restarted"
+        fi
       else
-        echo "⚠️  Warning: Cannot determine SSH service status. Please restart SSH service manually"
+        if [ "$LANG" = "zh" ]; then
+          echo "⚠️  警告：无法确定SSH服务状态。请手动重启SSH服务"
+          echo "   常用命令：service ssh restart 或 service sshd restart"
+        else
+          echo "⚠️  Warning: Cannot determine SSH service status. Please restart SSH service manually"
+          echo "   Common commands: service ssh restart or service sshd restart"
+        fi
       fi
     fi
   else
