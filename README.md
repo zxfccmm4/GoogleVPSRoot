@@ -1,5 +1,7 @@
 # Google VPS Root Setup Script
 
+[English](README.md) | [中文](READMECN.md)
+
 This repository contains a Bash script (`setup_vps_root.sh`) designed to simplify the initial setup process for a Google Cloud VPS, specifically focusing on enabling root login via SSH with a password.
 
 ## Features
@@ -23,8 +25,8 @@ This repository contains a Bash script (`setup_vps_root.sh`) designed to simplif
     Clone this repository or download the `setup_vps_root.sh` script to your server.
 
     ```bash
-    git clone <repository_url> # Or download manually
-    cd <repository_directory>
+    git clone https://github.com/zxfccmm4/GoogleVPSRoot.git
+    cd GoogleVPSRoot
     ```
 
 2.  **Make the Script Executable**:
@@ -61,4 +63,13 @@ This repository contains a Bash script (`setup_vps_root.sh`) designed to simplif
 
 ## Disclaimer
 
-This script is provided as-is. Use it at your own risk. The author is not responsible for any damage or issues caused by its use. Always understand what a script does before running it on your system, especially with `sudo` privileges.# GoogleVPSRoot
+This script is provided as-is. Use it at your own risk. The author is not responsible for any damage or issues caused by its use. Always understand what a script does before running it on your system, especially with `sudo` privileges.
+
+## Repository
+
+- **GitHub**: https://github.com/zxfccmm4/GoogleVPSRoot.git
+- **Author**: zxfccmm4
+
+## License
+
+This project is open source. Please check the repository for license details.
