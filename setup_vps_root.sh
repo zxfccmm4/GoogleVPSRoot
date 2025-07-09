@@ -183,8 +183,42 @@ case $OS_CHOICE in
     fi
     echo "sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config"
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
-    echo "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config"
-    sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+    if [ "$LANG" = "zh" ]; then
+      echo "🔧 确保启用密码登录 (PasswordAuthentication)..."
+    else
+      echo "🔧 Ensuring password login is enabled (PasswordAuthentication)..."
+    fi
+    # 查找并替换或添加 PasswordAuthentication yes，以确保密码登录被允许
+    if grep -qE '^[[:space:]]*#?[[:space:]]*PasswordAuthentication' /etc/ssh/sshd_config; then
+      # 如果找到该行（无论是否被注释），则取消注释并设置为 yes
+      echo "sed -i 's/^[[:space:]]*#?[[:space:]]*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config"
+      sed -i 's/^[[:space:]]*#?[[:space:]]*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+    else
+      # 如果未找到该行，则在文件末尾添加
+      echo "echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config"
+      echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
+    fi
+
+    # 额外检查并修改 /etc/ssh/sshd_config.d/ 目录下的配置文件
+    if [ -d /etc/ssh/sshd_config.d/ ]; then
+      if [ "$LANG" = "zh" ]; then
+        echo "🔧 检查 /etc/ssh/sshd_config.d/ 目录..."
+      else
+        echo "🔧 Checking /etc/ssh/sshd_config.d/ directory..."
+      fi
+      # 查找所有包含 PasswordAuthentication 的 .conf 文件并修改
+      grep -lri 'PasswordAuthentication' /etc/ssh/sshd_config.d/ | while read -r conf_file; do
+        if [ -f "$conf_file" ]; then
+          if [ "$LANG" = "zh" ]; then
+            echo "   - 正在修改文件: $conf_file"
+          else
+            echo "   - Modifying file: $conf_file"
+          fi
+          echo "     sed -i 's/^[[:space:]]*#?[[:space:]]*PasswordAuthentication.*/PasswordAuthentication yes/' \"$conf_file\""
+          sed -i 's/^[[:space:]]*#?[[:space:]]*PasswordAuthentication.*/PasswordAuthentication yes/' "$conf_file"
+        fi
+      done
+    fi
     CONFIG_MODIFIED=true
     if [ "$LANG" = "zh" ]; then
       echo "✅ SSH 配置已更新 (Ubuntu)"
