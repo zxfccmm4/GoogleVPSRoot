@@ -80,17 +80,28 @@ else
 fi
 echo ""
 
-# Function to safely update sshd_config by ensuring our setting is the last and only one
+# Final, safest version of the function to update sshd_config
 update_ssh_config() {
   local key="$1"
   local value="$2"
   local config_file="/etc/ssh/sshd_config"
 
-  # Delete all existing lines for the key (commented or not) to avoid conflicts
-  sed -i -E "/^\s*#?\s*${key}/d" "$config_file"
-
-  # Append the desired setting to the end of the file to ensure it takes precedence
-  echo "${key} ${value}" >> "$config_file"
+  # Check if the key already exists (commented or uncommented)
+  if grep -qE "^\s*#?\s*${key}" "$config_file"; then
+    # If it exists, replace the line robustly.
+    # This ensures that even if there are multiple lines, only the first is replaced and the rest are deleted.
+    # A bit complex, but handles all edge cases.
+    sed -i -E "s/^\s*#?\s*${key}.*/${key} ${value}/" "$config_file"
+    # To be absolutely sure, let's delete any other duplicate lines (if any)
+    local count=$(grep -cE "^\s*${key}" "$config_file")
+    if [ "$count" -gt 1 ]; then
+      sed -i "/^\s*${key}/d" "$config_file"
+      echo "${key} ${value}" >> "$config_file"
+    fi
+  else
+    # If it does not exist, append it.
+    echo "${key} ${value}" >> "$config_file"
+  fi
 }
 
 # 1. 设置 root 密码
@@ -179,50 +190,70 @@ else
   echo "✅ SSH configuration updated"
 fi
 
-# 重启 SSH 服务
+# 安全检查和重启 SSH 服务
 echo ""
 if [ "$LANG" = "zh" ]; then
-  echo "🔄 正在重启 SSH 服务..."
+  echo "🛡️  正在验证 SSH 配置文件语法..."
 else
-  echo "🔄 Restarting SSH service..."
+  echo "🛡️  Validating SSH configuration syntax..."
 fi
 
-# 更稳健的 SSH 重启逻辑
-RESTARTED=false
-SERVICE_NAME=""
-# 尝试使用 systemctl (新系统)
-if command -v systemctl &> /dev/null; then
-  # 检查并重启 sshd 或 ssh 服务
-  if systemctl is-active --quiet sshd.service; then
-    systemctl restart sshd.service && RESTARTED=true && SERVICE_NAME="sshd"
-  elif systemctl is-active --quiet ssh.service; then
-    systemctl restart ssh.service && RESTARTED=true && SERVICE_NAME="ssh"
-  fi
-# 尝试使用 service (旧系统)
-elif command -v service &> /dev/null; then
-  if service sshd status &> /dev/null; then
-    service sshd restart && RESTARTED=true && SERVICE_NAME="sshd"
-  elif service ssh status &> /dev/null; then
-    service ssh restart && RESTARTED=true && SERVICE_NAME="ssh"
-  fi
-fi
-
-if [ "$RESTARTED" = true ]; then
+# 使用 sshd -t 进行语法检查
+if sshd -t; then
   if [ "$LANG" = "zh" ]; then
-    echo "✅ SSH 服务 ($SERVICE_NAME) 已成功重启"
+    echo "✅ SSH 配置文件语法正确。"
+    echo "🔄 正在重启 SSH 服务..."
   else
-    echo "✅ SSH service ($SERVICE_NAME) restarted successfully"
+    echo "✅ SSH configuration syntax is OK."
+    echo "🔄 Restarting SSH service..."
+  fi
+
+  # 更稳健的 SSH 重启逻辑
+  RESTARTED=false
+  SERVICE_NAME=""
+  if command -v systemctl &> /dev/null; then
+    if systemctl is-active --quiet sshd.service; then
+      systemctl restart sshd.service && RESTARTED=true && SERVICE_NAME="sshd"
+    elif systemctl is-active --quiet ssh.service; then
+      systemctl restart ssh.service && RESTARTED=true && SERVICE_NAME="ssh"
+    fi
+  elif command -v service &> /dev/null; then
+    if service sshd status &> /dev/null; then
+      service sshd restart && RESTARTED=true && SERVICE_NAME="sshd"
+    elif service ssh status &> /dev/null; then
+      service ssh restart && RESTARTED=true && SERVICE_NAME="ssh"
+    fi
+  fi
+
+  if [ "$RESTARTED" = true ]; then
+    if [ "$LANG" = "zh" ]; then
+      echo "✅ SSH 服务 ($SERVICE_NAME) 已成功重启"
+    else
+      echo "✅ SSH service ($SERVICE_NAME) restarted successfully"
+    fi
+  else
+    if [ "$LANG" = "zh" ]; then
+      echo "⚠️  警告：自动重启 SSH 服务失败。请手动重启。"
+      echo "   常用命令: systemctl restart sshd  或  service sshd restart"
+    else
+      echo "⚠️  Warning: Failed to automatically restart SSH service. Please restart manually."
+      echo "   Common commands: systemctl restart sshd  or  service sshd restart"
+    fi
   fi
 else
+  # 如果 sshd -t 失败
   if [ "$LANG" = "zh" ]; then
-    echo "⚠️  警告：自动重启 SSH 服务失败。"
-    echo "   请在脚本完成后手动重启服务以应用更改。"
-    echo "   常用命令: systemctl restart sshd  或  service sshd restart"
+    echo "❌ 严重错误：SSH 配置文件存在语法错误！"
+    echo "   为了您的服务器安全，脚本已中止，并未重启 SSH 服务。"
+    echo "   请手动检查 /etc/ssh/sshd_config 文件中的错误。"
+    echo "   修复后，请手动运行 'systemctl restart sshd'。"
   else
-    echo "⚠️  Warning: Failed to automatically restart SSH service."
-    echo "   Please restart the service manually after the script finishes to apply changes."
-    echo "   Common commands: systemctl restart sshd  or  service sshd restart"
+    echo "❌ CRITICAL ERROR: SSH configuration file has a syntax error!"
+    echo "   For your server's safety, the script has been aborted without restarting the SSH service."
+    echo "   Please manually check /etc/ssh/sshd_config for errors."
+    echo "   After fixing, please run 'systemctl restart sshd' manually."
   fi
+  exit 1
 fi
 
 echo ""
