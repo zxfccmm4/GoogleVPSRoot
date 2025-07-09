@@ -80,21 +80,17 @@ else
 fi
 echo ""
 
-# Function to safely update sshd_config
+# Function to safely update sshd_config by ensuring our setting is the last and only one
 update_ssh_config() {
   local key="$1"
   local value="$2"
   local config_file="/etc/ssh/sshd_config"
 
-  # Use grep to check if the key exists (commented or uncommented)
-  if grep -qE "^\s*#?\s*${key}" "$config_file"; then
-    # If it exists, use sed to uncomment/update the line
-    # This regex handles lines with or without leading whitespace, with or without a comment hash
-    sed -i -E "s/^\s*#?\s*${key}.*/${key} ${value}/" "$config_file"
-  else
-    # If the key does not exist, append it to the file
-    echo "${key} ${value}" >> "$config_file"
-  fi
+  # Delete all existing lines for the key (commented or not) to avoid conflicts
+  sed -i -E "/^\s*#?\s*${key}/d" "$config_file"
+
+  # Append the desired setting to the end of the file to ensure it takes precedence
+  echo "${key} ${value}" >> "$config_file"
 }
 
 # 1. 设置 root 密码
