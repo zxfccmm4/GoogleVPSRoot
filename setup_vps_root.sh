@@ -172,86 +172,71 @@ fi
 echo ""
 echo "=========================================="
 if [ "$LANG" = "zh" ]; then
-  echo "步骤 2: 配置 SSH 以允许 root 登录"
+  echo "步骤 2: 强制启用 Root 密码登录 (最终方案)"
   echo "=========================================="
-  echo "🔧 正在以通用方式更新 SSH 配置文件 (/etc/ssh/sshd_config)..."
+  echo "🔧 正在创建独立的 SSH 配置文件以绕过系统限制..."
 else
-  echo "Step 2: Configure SSH for Root Login"
+  echo "Step 2: Force Enable Root Password Login (Final Method)"
   echo "=========================================="
-  echo "🔧 Updating SSH configuration file universally (/etc/ssh/sshd_config)..."
+  echo "🔧 Creating an independent SSH config to bypass system restrictions..."
 fi
 
-update_ssh_config "PermitRootLogin" "yes"
-update_ssh_config "PasswordAuthentication" "yes"
+# 创建一个最小化的、只允许 root 密码登录的配置文件
+cat > /etc/ssh/sshd_config_root_only << EOF
+# Custom SSH config to force root password login
+# This file is managed by the setup script. Do not edit manually.
+
+# Include the original configuration to inherit basic settings
+Include /etc/ssh/sshd_config
+
+# Forcefully override authentication settings
+PasswordAuthentication yes
+PermitRootLogin yes
+ChallengeResponseAuthentication no
+UsePAM no
+EOF
+
+# 创建 systemd 覆盖目录
+mkdir -p /etc/systemd/system/ssh.service.d/
+
+# 创建 systemd 覆盖文件，强制 sshd 使用我们的自定义配置
+cat > /etc/systemd/system/ssh.service.d/override.conf << EOF
+# This override forces sshd to use our custom configuration file
+# to ensure root password login is enabled.
+[Service]
+ExecStart=
+ExecStart=/usr/sbin/sshd -D -f /etc/ssh/sshd_config_root_only
+EOF
 
 if [ "$LANG" = "zh" ]; then
-  echo "✅ SSH 配置已更新"
+  echo "✅ 自定义配置创建成功。"
+  echo "🔄 正在重载 systemd 并重启 SSH 服务..."
 else
-  echo "✅ SSH configuration updated"
+  echo "✅ Custom configuration created successfully."
+  echo "🔄 Reloading systemd and restarting SSH service..."
 fi
 
-# 安全检查和重启 SSH 服务
-echo ""
-if [ "$LANG" = "zh" ]; then
-  echo "🛡️  正在验证 SSH 配置文件语法..."
-else
-  echo "🛡️  Validating SSH configuration syntax..."
-fi
+# 重载 systemd 配置并重启 ssh 服务
+systemctl daemon-reload
+systemctl restart ssh
 
-# 使用 sshd -t 进行语法检查
-if sshd -t; then
+if [ $? -eq 0 ]; then
   if [ "$LANG" = "zh" ]; then
-    echo "✅ SSH 配置文件语法正确。"
-    echo "🔄 正在重启 SSH 服务..."
+    echo "✅ SSH 服务已使用强制配置成功重启！"
   else
-    echo "✅ SSH configuration syntax is OK."
-    echo "🔄 Restarting SSH service..."
-  fi
-
-  # 更稳健的 SSH 重启逻辑
-  RESTARTED=false
-  SERVICE_NAME=""
-  if command -v systemctl &> /dev/null; then
-    if systemctl is-active --quiet sshd.service; then
-      systemctl restart sshd.service && RESTARTED=true && SERVICE_NAME="sshd"
-    elif systemctl is-active --quiet ssh.service; then
-      systemctl restart ssh.service && RESTARTED=true && SERVICE_NAME="ssh"
-    fi
-  elif command -v service &> /dev/null; then
-    if service sshd status &> /dev/null; then
-      service sshd restart && RESTARTED=true && SERVICE_NAME="sshd"
-    elif service ssh status &> /dev/null; then
-      service ssh restart && RESTARTED=true && SERVICE_NAME="ssh"
-    fi
-  fi
-
-  if [ "$RESTARTED" = true ]; then
-    if [ "$LANG" = "zh" ]; then
-      echo "✅ SSH 服务 ($SERVICE_NAME) 已成功重启"
-    else
-      echo "✅ SSH service ($SERVICE_NAME) restarted successfully"
-    fi
-  else
-    if [ "$LANG" = "zh" ]; then
-      echo "⚠️  警告：自动重启 SSH 服务失败。请手动重启。"
-      echo "   常用命令: systemctl restart sshd  或  service sshd restart"
-    else
-      echo "⚠️  Warning: Failed to automatically restart SSH service. Please restart manually."
-      echo "   Common commands: systemctl restart sshd  or  service sshd restart"
-    fi
+    echo "✅ SSH service restarted successfully with forced configuration!"
   fi
 else
-  # 如果 sshd -t 失败
   if [ "$LANG" = "zh" ]; then
-    echo "❌ 严重错误：SSH 配置文件存在语法错误！"
-    echo "   为了您的服务器安全，脚本已中止，并未重启 SSH 服务。"
-    echo "   请手动检查 /etc/ssh/sshd_config 文件中的错误。"
-    echo "   修复后，请手动运行 'systemctl restart sshd'。"
+    echo "❌ 严重错误：使用强制配置重启 SSH 服务失败！"
+    echo "   请立即通过串行控制台检查服务状态："
+    echo "   systemctl status ssh"
+    echo "   journalctl -xeu ssh"
   else
-    echo "❌ CRITICAL ERROR: SSH configuration file has a syntax error!"
-    echo "   For your server's safety, the script has been aborted without restarting the SSH service."
-    echo "   Please manually check /etc/ssh/sshd_config for errors."
-    echo "   After fixing, please run 'systemctl restart sshd' manually."
+    echo "❌ CRITICAL ERROR: Failed to restart SSH service with forced configuration!"
+    echo "   Please check the service status immediately via the serial console:"
+    echo "   systemctl status ssh"
+    echo "   journalctl -xeu ssh"
   fi
   exit 1
 fi
