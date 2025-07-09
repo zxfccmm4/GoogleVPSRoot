@@ -2,10 +2,16 @@
 
 # Google VPS Root Setup Script
 # 自动化设置Google Cloud VPS的root登录权限
+# Author: Steve
+# X: @st7evechou
 
-echo "=========================================="
-echo "  Google VPS Root Setup Script"
-echo "=========================================="
+echo "
++--------------------------------------------------+
+|                                                  |
+|          Google VPS Root Setup Script            |
+|                                                  |
++--------------------------------------------------+
+"
 echo ""
 echo "Language Selection / 语言选择"
 echo "1) English"
@@ -31,13 +37,23 @@ clear
 
 # 显示标题
 if [ "$LANG" = "zh" ]; then
-  echo "=========================================="
-  echo "  Google VPS Root 设置脚本"
-  echo "=========================================="
+  echo "
++--------------------------------------------------+
+|                                                  |
+|            Google VPS Root 设置脚本              |
+|              作者: Steve (X: @st7evechou)        |
+|                                                  |
++--------------------------------------------------+
+"
 else
-  echo "=========================================="
-  echo "  Google VPS Root Setup Script"
-  echo "=========================================="
+  echo "
++--------------------------------------------------+
+|                                                  |
+|          Google VPS Root Setup Script            |
+|            Author: Steve (X: @st7evechou)        |
+|                                                  |
++--------------------------------------------------+
+"
 fi
 echo ""
 
@@ -63,6 +79,23 @@ else
   echo "✅ Confirmed running as root"
 fi
 echo ""
+
+# Function to safely update sshd_config
+update_ssh_config() {
+  local key="$1"
+  local value="$2"
+  local config_file="/etc/ssh/sshd_config"
+
+  # Use grep to check if the key exists (commented or uncommented)
+  if grep -qE "^\s*#?\s*${key}" "$config_file"; then
+    # If it exists, use sed to uncomment/update the line
+    # This regex handles lines with or without leading whitespace, with or without a comment hash
+    sed -i -E "s/^\s*#?\s*${key}.*/${key} ${value}/" "$config_file"
+  else
+    # If the key does not exist, append it to the file
+    echo "${key} ${value}" >> "$config_file"
+  fi
+}
 
 # 1. 设置 root 密码
 echo "=========================================="
@@ -132,251 +165,67 @@ fi
 echo ""
 echo "=========================================="
 if [ "$LANG" = "zh" ]; then
-  echo "步骤 2: 开启 Google Cloud SSH 权限"
+  echo "步骤 2: 配置 SSH 以允许 root 登录"
   echo "=========================================="
-  echo "请选择您的操作系统类型:"
-  echo "  1) CentOS / Debian"
-  echo "  2) Ubuntu"
-  echo ""
-  read -p "请输入选项 (1 或 2): " OS_CHOICE
+  echo "🔧 正在以通用方式更新 SSH 配置文件 (/etc/ssh/sshd_config)..."
 else
-  echo "Step 2: Enable Google Cloud SSH Permissions"
+  echo "Step 2: Configure SSH for Root Login"
   echo "=========================================="
-  echo "Please select your operating system type:"
-  echo "  1) CentOS / Debian"
-  echo "  2) Ubuntu"
-  echo ""
-  read -p "Enter option (1 or 2): " OS_CHOICE
+  echo "🔧 Updating SSH configuration file universally (/etc/ssh/sshd_config)..."
 fi
 
-CONFIG_MODIFIED=false
+update_ssh_config "PermitRootLogin" "yes"
+update_ssh_config "PasswordAuthentication" "yes"
 
-case $OS_CHOICE in
-  1)
-    echo ""
-    if [ "$LANG" = "zh" ]; then
-      echo "🔧 为 CentOS/Debian 系统配置 SSH..."
-      echo "执行命令:"
-    else
-      echo "🔧 Configuring SSH for CentOS/Debian system..."
-      echo "Executing commands:"
-    fi
-    echo "sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config"
-    sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config
-    echo "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config"
-    sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
-    CONFIG_MODIFIED=true
-    if [ "$LANG" = "zh" ]; then
-      echo "✅ SSH 配置已更新 (CentOS/Debian)"
-    else
-      echo "✅ SSH configuration updated (CentOS/Debian)"
-    fi
-    ;;
-  2)
-    echo ""
-    if [ "$LANG" = "zh" ]; then
-      echo "🔧 为 Ubuntu 系统配置 SSH..."
-      echo "执行命令:"
-    else
-      echo "🔧 Configuring SSH for Ubuntu system..."
-      echo "Executing commands:"
-    fi
-    echo "sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config"
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
-    echo "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config"
-    sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
-    CONFIG_MODIFIED=true
-    if [ "$LANG" = "zh" ]; then
-      echo "✅ SSH 配置已更新 (Ubuntu)"
-    else
-      echo "✅ SSH configuration updated (Ubuntu)"
-    fi
-    ;;
-  *)
-    if [ "$LANG" = "zh" ]; then
-      echo "❌ 错误：无效的选项。脚本已中止。"
-    else
-      echo "❌ Error: Invalid option. Script aborted."
-    fi
-    exit 1
-    ;;
-esac
+if [ "$LANG" = "zh" ]; then
+  echo "✅ SSH 配置已更新"
+else
+  echo "✅ SSH configuration updated"
+fi
 
 # 重启 SSH 服务
-if [ "$CONFIG_MODIFIED" = true ]; then
-  echo ""
-  if [ "$LANG" = "zh" ]; then
-    echo "🔄 正在重启 SSH 服务..."
-  else
-    echo "🔄 Restarting SSH service..."
+echo ""
+if [ "$LANG" = "zh" ]; then
+  echo "🔄 正在重启 SSH 服务..."
+else
+  echo "🔄 Restarting SSH service..."
+fi
+
+# 更稳健的 SSH 重启逻辑
+RESTARTED=false
+SERVICE_NAME=""
+# 尝试使用 systemctl (新系统)
+if command -v systemctl &> /dev/null; then
+  # 检查并重启 sshd 或 ssh 服务
+  if systemctl is-active --quiet sshd.service; then
+    systemctl restart sshd.service && RESTARTED=true && SERVICE_NAME="sshd"
+  elif systemctl is-active --quiet ssh.service; then
+    systemctl restart ssh.service && RESTARTED=true && SERVICE_NAME="ssh"
   fi
-  
-  if command -v systemctl &> /dev/null; then
-    if systemctl list-units --type=service --all | grep -q sshd.service; then
-      if systemctl restart sshd 2>/dev/null; then
-        if [ "$LANG" = "zh" ]; then
-          echo "✅ sshd 服务已重启"
-        else
-          echo "✅ sshd service restarted"
-        fi
-      else
-        if [ "$LANG" = "zh" ]; then
-          echo "❌ sshd 服务重启失败，尝试ssh服务..."
-        else
-          echo "❌ Failed to restart sshd service, trying ssh service..."
-        fi
-        if systemctl restart ssh 2>/dev/null; then
-          if [ "$LANG" = "zh" ]; then
-            echo "✅ ssh 服务已重启"
-          else
-            echo "✅ ssh service restarted"
-          fi
-        else
-          if [ "$LANG" = "zh" ]; then
-            echo "❌ SSH 服务重启失败，请手动重启"
-          else
-            echo "❌ Failed to restart SSH service, please restart manually"
-          fi
-        fi
-      fi
-    elif systemctl list-units --type=service --all | grep -q ssh.service; then
-      if systemctl restart ssh 2>/dev/null; then
-        if [ "$LANG" = "zh" ]; then
-          echo "✅ ssh 服务已重启"
-        else
-          echo "✅ ssh service restarted"
-        fi
-      else
-        if [ "$LANG" = "zh" ]; then
-          echo "❌ ssh 服务重启失败，尝试sshd服务..."
-        else
-          echo "❌ Failed to restart ssh service, trying sshd service..."
-        fi
-        if systemctl restart sshd 2>/dev/null; then
-          if [ "$LANG" = "zh" ]; then
-            echo "✅ sshd 服务已重启"
-          else
-            echo "✅ sshd service restarted"
-          fi
-        else
-          if [ "$LANG" = "zh" ]; then
-            echo "❌ SSH 服务重启失败，请手动重启"
-          else
-            echo "❌ Failed to restart SSH service, please restart manually"
-          fi
-        fi
-      fi
-    else
-      # 尝试直接重启常见的SSH服务
-      if systemctl restart ssh 2>/dev/null; then
-        if [ "$LANG" = "zh" ]; then
-          echo "✅ ssh 服务已重启"
-        else
-          echo "✅ ssh service restarted"
-        fi
-      elif systemctl restart sshd 2>/dev/null; then
-        if [ "$LANG" = "zh" ]; then
-          echo "✅ sshd 服务已重启"
-        else
-          echo "✅ sshd service restarted"
-        fi
-      else
-        if [ "$LANG" = "zh" ]; then
-          echo "⚠️  警告：未找到可用的SSH服务。请手动重启SSH服务"
-          echo "   常用命令：systemctl restart ssh 或 systemctl restart sshd"
-        else
-          echo "⚠️  Warning: No available SSH service found. Please restart SSH service manually"
-          echo "   Common commands: systemctl restart ssh or systemctl restart sshd"
-        fi
-      fi
-    fi
-  elif command -v service &> /dev/null; then
-    if service ssh status &> /dev/null; then
-      if service ssh restart 2>/dev/null; then
-        if [ "$LANG" = "zh" ]; then
-          echo "✅ ssh 服务已重启"
-        else
-          echo "✅ ssh service restarted"
-        fi
-      else
-        if [ "$LANG" = "zh" ]; then
-          echo "❌ ssh 服务重启失败，尝试sshd服务..."
-        else
-          echo "❌ Failed to restart ssh service, trying sshd service..."
-        fi
-        if service sshd restart 2>/dev/null; then
-          if [ "$LANG" = "zh" ]; then
-            echo "✅ sshd 服务已重启"
-          else
-            echo "✅ sshd service restarted"
-          fi
-        else
-          if [ "$LANG" = "zh" ]; then
-            echo "❌ SSH 服务重启失败，请手动重启"
-          else
-            echo "❌ Failed to restart SSH service, please restart manually"
-          fi
-        fi
-      fi
-    elif service sshd status &> /dev/null; then
-      if service sshd restart 2>/dev/null; then
-        if [ "$LANG" = "zh" ]; then
-          echo "✅ sshd 服务已重启"
-        else
-          echo "✅ sshd service restarted"
-        fi
-      else
-        if [ "$LANG" = "zh" ]; then
-          echo "❌ sshd 服务重启失败，尝试ssh服务..."
-        else
-          echo "❌ Failed to restart sshd service, trying ssh service..."
-        fi
-        if service ssh restart 2>/dev/null; then
-          if [ "$LANG" = "zh" ]; then
-            echo "✅ ssh 服务已重启"
-          else
-            echo "✅ ssh service restarted"
-          fi
-        else
-          if [ "$LANG" = "zh" ]; then
-            echo "❌ SSH 服务重启失败，请手动重启"
-          else
-            echo "❌ Failed to restart SSH service, please restart manually"
-          fi
-        fi
-      fi
-    else
-      # 尝试直接重启常见的SSH服务
-      if service ssh restart 2>/dev/null; then
-        if [ "$LANG" = "zh" ]; then
-          echo "✅ ssh 服务已重启"
-        else
-          echo "✅ ssh service restarted"
-        fi
-      elif service sshd restart 2>/dev/null; then
-        if [ "$LANG" = "zh" ]; then
-          echo "✅ sshd 服务已重启"
-        else
-          echo "✅ sshd service restarted"
-        fi
-      else
-        if [ "$LANG" = "zh" ]; then
-          echo "⚠️  警告：无法确定SSH服务状态。请手动重启SSH服务"
-          echo "   常用命令：service ssh restart 或 service sshd restart"
-        else
-          echo "⚠️  Warning: Cannot determine SSH service status. Please restart SSH service manually"
-          echo "   Common commands: service ssh restart or service sshd restart"
-        fi
-      fi
-    fi
+# 尝试使用 service (旧系统)
+elif command -v service &> /dev/null; then
+  if service sshd status &> /dev/null; then
+    service sshd restart && RESTARTED=true && SERVICE_NAME="sshd"
+  elif service ssh status &> /dev/null; then
+    service ssh restart && RESTARTED=true && SERVICE_NAME="ssh"
+  fi
+fi
+
+if [ "$RESTARTED" = true ]; then
+  if [ "$LANG" = "zh" ]; then
+    echo "✅ SSH 服务 ($SERVICE_NAME) 已成功重启"
   else
-    if [ "$LANG" = "zh" ]; then
-      echo "⚠️  警告：未找到 systemctl 或 service 命令"
-      echo "   请手动重启 SSH 服务：/etc/init.d/sshd restart 或 /etc/init.d/ssh restart"
-    else
-      echo "⚠️  Warning: systemctl or service command not found"
-      echo "   Please restart SSH service manually: /etc/init.d/sshd restart or /etc/init.d/ssh restart"
-    fi
+    echo "✅ SSH service ($SERVICE_NAME) restarted successfully"
+  fi
+else
+  if [ "$LANG" = "zh" ]; then
+    echo "⚠️  警告：自动重启 SSH 服务失败。"
+    echo "   请在脚本完成后手动重启服务以应用更改。"
+    echo "   常用命令: systemctl restart sshd  或  service sshd restart"
+  else
+    echo "⚠️  Warning: Failed to automatically restart SSH service."
+    echo "   Please restart the service manually after the script finishes to apply changes."
+    echo "   Common commands: systemctl restart sshd  or  service sshd restart"
   fi
 fi
 
